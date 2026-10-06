@@ -1,28 +1,47 @@
 # chora-cli
 
-`chora` — command-line tool for Chora platform management. Expert and admin
-access to the Chora Bimodal Atomic Learning Ecosystem from the terminal:
-LearningAtom CRUD, tenant inspection, Familiar status, feature-flag
-administration, and gateway health checks.
+## About
 
-The CLI is cloud-neutral: it is a plain HTTP client of the Chora gateway REST
-API. It listens on no ports, needs no database, and stores credentials in a
-user-scoped file (`~/.config/chora/credentials.json`, mode 0600). API keys are
-never logged or displayed in full.
+`chora-cli` is a Go command-line client for managing and inspecting the Chora platform through its gateway REST API. It provides authentication, LearningAtom operations, tenant and Familiar status, gateway health checks, feature-flag administration, and an events command. The CLI is a client only: it opens no listening port and does not require a database.
 
-## Install
+## Quick start
+
+Requires Go 1.26.6, as declared in `go.mod`.
+
+Install the CLI from the Go module:
 
 ```sh
 go install github.com/apollo-chora/chora-cli/cmd/chora@latest
 ```
 
-Or run from a checkout:
+Then authenticate against the gateway:
 
 ```sh
-go run ./cmd/chora
+chora auth login --api-key sk_test_your_key
 ```
 
-Or via Docker:
+The default gateway URL is `http://localhost:8093`. Supply another gateway with `--gateway`:
+
+```sh
+chora auth login   --api-key sk_test_your_key   --gateway http://localhost:8093
+```
+
+Check the installed command:
+
+```sh
+chora --help
+chora --version
+```
+
+You can also run the CLI directly from a checkout:
+
+```sh
+git clone https://github.com/apollo-chora/chora-cli.git
+cd chora-cli
+go run ./cmd/chora --help
+```
+
+Or run the published container:
 
 ```sh
 docker run --rm walfa/chora-cli --help
@@ -30,45 +49,103 @@ docker run --rm walfa/chora-cli --help
 
 ## Usage
 
+### Authentication
+
+Credentials are stored in `~/.config/chora/credentials.json` with file mode `0600`. The config directory follows the current user's home directory, so setting `HOME` changes the effective location.
+
 ```sh
-chora --help
+chora auth login --api-key <key> [--gateway <url>]
+chora auth logout
 ```
 
-All API calls carry the stored key in the `X-API-Key` header and target the
-gateway URL stored at login (default `http://localhost:8093`).
+The API key is sent to the gateway as the `X-API-Key` header. The HTTP client also sends a `User-Agent` of `chora-cli/0.1`. API keys are masked when represented by the credential type and are not intended to be logged or printed in full.
+
+### Commands
 
 | Command | Description |
 | --- | --- |
-| `chora auth login --api-key <key> [--gateway <url>]` | Authenticate and store credentials |
-| `chora auth logout` | Clear local credentials |
-| `chora atoms list [--topic <name>] [--cursor <c>] [--limit <n>]` | List LearningAtoms (cursor-paginated) |
-| `chora atoms get <id>` | Fetch a single LearningAtom by ID |
-| `chora atoms create --file <yaml>` | Create a LearningAtom from a YAML/JSON definition |
-| `chora tenants info` | Display current tenant details |
-| `chora familiars status` | Display Familiar status and stats |
-| `chora health` | Check gateway health |
-| `chora events tail` | Tail the event bus (streaming not yet implemented) |
-| `chora flags list` | List feature flag overrides |
-| `chora flags set <code>` | Enable a feature flag override |
+| `chora auth login --api-key <key> [--gateway <url>]` | Store an API key and gateway URL |
+| `chora auth logout` | Remove stored credentials |
+| `chora atoms list [--topic <name>] [--cursor <cursor>] [--limit <n>]` | List LearningAtoms for the current tenant |
+| `chora atoms get <id>` | Fetch one LearningAtom |
+| `chora atoms create --file <path>` | Create a LearningAtom from a YAML/JSON file |
+| `chora tenants info` | Fetch the current tenant |
+| `chora familiars status` | Fetch Familiar status and statistics |
+| `chora health` | Fetch gateway health |
+| `chora events tail` | Print the current event-tail status; streaming is not implemented |
+| `chora flags list` | List feature-flag overrides |
+| `chora flags set <code>` | Enable a feature-flag override |
 
-## Configuration
+Examples:
 
-Credentials live in `~/.config/chora/credentials.json` (override the directory
-by pointing `HOME` elsewhere). The gateway URL defaults to
-`http://localhost:8093` and can be set per-login with `--gateway`.
+```sh
+chora atoms list
+chora atoms list --topic mathematics --limit 50
+chora atoms list --cursor <cursor>
+chora atoms get <id>
+chora atoms create --file atom.yaml
+
+chora tenants info
+chora familiars status
+chora health
+
+chora flags list
+chora flags set my_feature_code
+```
+
+The CLI calls these gateway paths:
+
+| Command | HTTP path |
+| --- | --- |
+| `atoms list` | `GET /api/v1/atoms` |
+| `atoms get` | `GET /api/v1/atoms/{id}` |
+| `atoms create` | `POST /api/v1/atoms` |
+| `tenants info` | `GET /api/v1/tenants/current` |
+| `familiars status` | `GET /api/v1/familiars/me/stats` |
+| `health` | `GET /api/v1/health` |
+| `flags list` | `GET /api/v1/admin/feature-flags` |
+| `flags set` | `PUT /api/v1/admin/feature-flags/{code}` |
+
+Responses are printed as pretty-printed JSON when the gateway returns JSON. HTTP responses with status 400 or higher are prefixed with the returned status code and their response body is still printed.
+
+The HTTP client uses a 30-second request timeout. The CLI does not expose a separate timeout flag.
 
 ## Development
 
+Build the CLI:
+
 ```sh
 go build ./...
+```
+
+Run the same static and test checks used by CI:
+
+```sh
+gofmt -l .
+go mod tidy
 go vet ./...
 go test ./...
 ```
 
-## Layout
+CI also verifies that `go mod tidy` leaves `go.mod` and `go.sum` unchanged.
 
+The project is organized as a single Cobra command tree:
+
+```text
+cmd/chora/
+  main.go                     Cobra commands and gateway API calls
+  internal/client/
+    client.go                 HTTP client and request headers
+    client_test.go             HTTP client tests
+  internal/config/
+    config.go                 Credential file storage and key masking
+    config_test.go             Credential-store tests
+go.mod                         Go module and dependencies
+go.sum                         Dependency checksums
+Dockerfile                     Multi-stage CLI image build
+.github/workflows/
+  ci.yml                      Formatting, module, vet, and test checks
+  docker-publish.yml          Multi-architecture Docker image publishing
 ```
-cmd/chora/                 entrypoint — cobra command tree
-cmd/chora/internal/client/ HTTP gateway client (X-API-Key header, 30s timeout)
-cmd/chora/internal/config/ credential file store (0600, key masking)
-```
+
+The Dockerfile builds a static Linux `amd64` binary and packages it in a non-root distroless runtime image. The GitHub Actions Docker workflow publishes `linux/amd64` and `linux/arm64` images as `walfa/chora-cli`.
