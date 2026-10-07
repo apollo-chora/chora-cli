@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const credentialFile = "credentials.json"
@@ -107,19 +106,4 @@ func (s *FileStore) Clear() error {
 		return fmt.Errorf("remove credentials: %w", err)
 	}
 	return nil
-}
-
-// SanitizeForLog removes or masks sensitive data from a string.
-func SanitizeForLog(s string) string {
-	// Mask any sk_live_ or sk_test_ prefixed keys.
-	for _, prefix := range []string{"sk_live_", "sk_test_"} {
-		if idx := strings.Index(s, prefix); idx >= 0 {
-			end := idx + len(prefix)
-			for end < len(s) && s[end] != ' ' && s[end] != '"' && s[end] != '\'' {
-				end++
-			}
-			s = s[:idx] + maskAPIKey(s[idx:end]) + s[end:]
-		}
-	}
-	return s
 }
