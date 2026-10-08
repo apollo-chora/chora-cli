@@ -4,9 +4,9 @@
 //
 //	chora auth login --api-key <key>  — authenticate and store credentials
 //	chora auth logout                 — clear local credentials
-//	chora atoms list [--topic <name>] — list LearningAtoms (paginated)
+//	chora atoms list                 — list LearningAtoms
 //	chora atoms get <id>              — fetch a single atom by ID
-//	chora atoms create --file <yaml>  — create atom from YAML definition
+//	chora atoms create --file <yaml>  — create atom from YAML/JSON definition
 //	chora tenants info                — display current tenant details
 //	chora familiars status            — display familiar status
 //	chora health                      — check service health
@@ -26,6 +26,7 @@ import (
 	"github.com/apollo-chora/chora-cli/cmd/chora/internal/client"
 	"github.com/apollo-chora/chora-cli/cmd/chora/internal/config"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 )
 
 // version is set at build time via ldflags.
@@ -103,10 +104,6 @@ func main() {
 		Short: "LearningAtom management commands",
 	}
 
-	var topicFlag string
-	var cursorFlag string
-	var limitFlag int
-
 	atomsListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List LearningAtoms for the current tenant",
@@ -115,21 +112,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/atoms"
-			sep := "?"
-			if topicFlag != "" {
-				path += sep + "topic=" + topicFlag
-				sep = "&"
-			}
-			if cursorFlag != "" {
-				path += sep + "cursor=" + cursorFlag
-				sep = "&"
-			}
-			if limitFlag > 0 {
-				path += fmt.Sprintf("%slimit=%d", sep, limitFlag)
-			}
-
-			resp, err := c.Get(context.Background(), path)
+			resp, err := c.Get(context.Background(), "/api/v1/atoms")
 			if err != nil {
 				return fmt.Errorf("API call: %w", err)
 			}
@@ -137,9 +120,6 @@ func main() {
 			return printJSON(cmd.OutOrStdout(), resp)
 		},
 	}
-	atomsListCmd.Flags().StringVar(&topicFlag, "topic", "", "Filter by topic name")
-	atomsListCmd.Flags().StringVar(&cursorFlag, "cursor", "", "Pagination cursor")
-	atomsListCmd.Flags().IntVar(&limitFlag, "limit", 20, "Page size")
 
 	atomsGetCmd := &cobra.Command{
 		Use:   "get [id]",
@@ -175,7 +155,11 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("read file: %w", err)
 			}
-			resp, err := c.Post(context.Background(), "/api/v1/atoms", body)
+			jsonBody, err := yaml.YAMLToJSON(body)
+			if err != nil {
+				return fmt.Errorf("parse atom definition: %w", err)
+			}
+			resp, err := c.Post(context.Background(), "/api/atoms", jsonBody)
 			if err != nil {
 				return fmt.Errorf("API call: %w", err)
 			}
@@ -207,7 +191,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Get(context.Background(), "/api/v1/tenants/current")
+			resp, err := c.Get(context.Background(), "/api/tenants/me")
 			if err != nil {
 				return fmt.Errorf("API call: %w", err)
 			}
@@ -280,7 +264,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Get(context.Background(), "/api/v1/admin/feature-flags")
+			resp, err := c.Get(context.Background(), "/api/feature-flags")
 			if err != nil {
 				return fmt.Errorf("API call: %w", err)
 			}
@@ -321,7 +305,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Get(context.Background(), "/api/v1/health")
+			resp, err := c.Get(context.Background(), "/health")
 			if err != nil {
 				return fmt.Errorf("API call: %w", err)
 			}

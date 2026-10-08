@@ -66,7 +66,7 @@ The API key is sent to the gateway as the `X-API-Key` header. The HTTP client al
 | --- | --- |
 | `chora auth login --api-key <key> [--gateway <url>]` | Store an API key and gateway URL |
 | `chora auth logout` | Remove stored credentials |
-| `chora atoms list [--topic <name>] [--cursor <cursor>] [--limit <n>]` | List LearningAtoms for the current tenant |
+| `chora atoms list` | List LearningAtoms for the current tenant |
 | `chora atoms get <id>` | Fetch one LearningAtom |
 | `chora atoms create --file <path>` | Create a LearningAtom from a YAML/JSON file |
 | `chora tenants info` | Fetch the current tenant |
@@ -80,8 +80,6 @@ Examples:
 
 ```sh
 chora atoms list
-chora atoms list --topic mathematics --limit 50
-chora atoms list --cursor <cursor>
 chora atoms get <id>
 chora atoms create --file atom.yaml
 
@@ -99,11 +97,11 @@ The CLI calls these gateway paths:
 | --- | --- |
 | `atoms list` | `GET /api/v1/atoms` |
 | `atoms get` | `GET /api/v1/atoms/{id}` |
-| `atoms create` | `POST /api/v1/atoms` |
-| `tenants info` | `GET /api/v1/tenants/current` |
+| `atoms create` | `POST /api/atoms` |
+| `tenants info` | `GET /api/tenants/me` |
 | `familiars status` | `GET /api/v1/familiars/me/stats` |
-| `health` | `GET /api/v1/health` |
-| `flags list` | `GET /api/v1/admin/feature-flags` |
+| `health` | `GET /health` |
+| `flags list` | `GET /api/feature-flags` |
 | `flags set` | `PUT /api/v1/admin/feature-flags/{code}` |
 
 Responses are printed as pretty-printed JSON when the gateway returns JSON. HTTP responses with status 400 or higher are prefixed with the returned status code and their response body is still printed.
